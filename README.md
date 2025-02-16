@@ -1,6 +1,6 @@
 ###### simple argument parser, supports both a string with arguments and an array from main
 
-###### example of use:
+###### example of use (learn more in the tests):
 ```c++
 eargs::parser parser = {{
         {{"h", "help"}, "it print help", eargs::empty, false},
