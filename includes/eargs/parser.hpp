@@ -117,8 +117,8 @@ namespace eargs {
                                 #endif
 
                                 switch(opt.type) {
-                                    case eargs::hex: { return std::strtoul(opt.variable.c_str(), 0, 16); };
-                                    case eargs::integer, eargs::boolean: { return std::atoi(opt.variable.c_str()); };
+                                    case eargs::hex: return std::strtoul(opt.variable.c_str(), 0, 16);
+                                    case eargs::integer: case eargs::boolean: return std::atoi(opt.variable.c_str());
                                 };
                             };
                         };

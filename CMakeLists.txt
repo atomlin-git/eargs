@@ -7,6 +7,5 @@ if(NOT IS_SUBPROJECT)
 endif()
 
 add_library(${PROJECT_NAME} INTERFACE) 
-#target_sources(${PROJECT_NAME} INTERFACE source/main.cpp)
 target_include_directories(${PROJECT_NAME} INTERFACE includes)
 target_compile_features(${PROJECT_NAME} INTERFACE cxx_std_20)

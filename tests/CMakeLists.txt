@@ -8,7 +8,7 @@ FetchContent_Declare(googletest URL https://github.com/google/googletest/archive
 FetchContent_MakeAvailable(googletest)
 
 enable_testing()
-add_executable(${PROJECT_NAME} source/hex.cpp source/string.cpp)
+add_executable(${PROJECT_NAME} source/hex.cpp source/integer.cpp source/string.cpp)
 target_link_libraries(${PROJECT_NAME} GTest::gtest_main eargs)
 
 include(GoogleTest)
