@@ -99,9 +99,10 @@ namespace eargs {
             bool print_help() {
                 for(const auto& opt : this->options) {
                     std::string name = "";
-                    for(const auto& opt_name : opt.names) name += opt_name + " ";
+                    for(const auto& opt_name : opt.names) name += ("-" + opt_name) + ",";
+                    name[name.length() - 1] = 0;
 
-                    printf("%s\t: %s\t (required: %s)\n", name.c_str(), opt.description.c_str(), opt.required ? "true" : "false");
+                    printf("%s:\t %s (required: %s)\n", name.c_str(), opt.description.c_str(), opt.required ? "true" : "false");
                 };
 
                 return true;
