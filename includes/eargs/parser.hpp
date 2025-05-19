@@ -3,7 +3,6 @@
 #include <list>
 #include <string>
 #include <vector>
-#include <cassert>
 #include <type_traits>
 
 namespace eargs {
@@ -42,11 +41,12 @@ namespace eargs {
             parser(eargs::option option) : options({option}) {};
 
             bool parse(std::string str) {
-                char* args[sizeof(unsigned short)];
                 auto parsed_str = this->string_to_vec(str);
+                auto args = new char*[parsed_str.size() + 1];
                 for(unsigned int i = 0; i < parsed_str.size(); i++) args[i + 1] = (char*)parsed_str[i].c_str();
-
-                return this->parse(args, int(parsed_str.size() + 1));
+                auto parse_status = this->parse(args, int(parsed_str.size() + 1));
+                delete args;
+                return parse_status;
             };
 
             bool parse(char* args[], int count) {
@@ -113,10 +113,6 @@ namespace eargs {
                     for(const auto& opt : this->options) {
                         for(const auto& opt_name : opt.names) {
                             if(name == opt_name) {
-                                #ifdef _DEBUG
-                                    assert((opt.type == eargs::types::boolean) || (opt.type == eargs::types::integer) || (opt.type == eargs::types::hex));
-                                #endif
-
                                 switch(opt.type) {
                                     case eargs::hex: return std::strtoul(opt.variable.c_str(), 0, 16);
                                     case eargs::integer: case eargs::boolean: return std::atoi(opt.variable.c_str());
@@ -132,11 +128,7 @@ namespace eargs {
                 typename std::enable_if<std::is_same<T, std::string>::value, T>::type get(std::string name) {
                     for(const auto& opt : this->options) {
                         for(const auto& opt_name : opt.names) {
-                            if(name == opt_name) {
-                                #ifdef _DEBUG
-                                    assert(opt.type == eargs::types::string);
-                                #endif
-                                
+                            if(name == opt_name) {                                
                                 return opt.variable;
                             };
                         };
