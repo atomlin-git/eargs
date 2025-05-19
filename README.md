@@ -25,7 +25,3 @@ if(parser.contains("addr")) {
 printf("name: %s\n", parser.get<std::string>("name").c_str());
 printf("phone: %d\n", parser.get<int>("phone"));
 ```
-
-###### todo:
-> refactory <br>
-> write more tests
