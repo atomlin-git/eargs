@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <list>
 #include <string>
 #include <vector>
@@ -41,11 +42,16 @@ namespace eargs {
             parser(eargs::option option) : options({option}) {};
 
             bool parse(std::string str) {
+                for(auto& opt : options) {
+                    opt.variable.clear();
+                };
+
                 auto parsed_str = this->string_to_vec(str);
                 auto args = new char*[parsed_str.size() + 1];
-                for(unsigned int i = 0; i < parsed_str.size(); i++) args[i + 1] = (char*)parsed_str[i].c_str();
+                for(int i = 0; i < parsed_str.size(); i++) args[i + 1] = (char*)parsed_str[i].c_str();
                 auto parse_status = this->parse(args, int(parsed_str.size() + 1));
-                delete args;
+                delete [] args;
+                
                 return parse_status;
             };
 
@@ -88,7 +94,7 @@ namespace eargs {
                 for(const auto& opt : this->options) {
                     for(const auto& opt_name : opt.names) {
                         if(name == opt_name) {
-                            return opt.variable != "";
+                            return !opt.variable.empty();
                         };
                     };
                 };
@@ -100,7 +106,9 @@ namespace eargs {
                 for(const auto& opt : this->options) {
                     std::string name = "";
                     for(const auto& opt_name : opt.names) name += ("-" + opt_name) + ",";
-                    name[name.length() - 1] = 0;
+                    if (!name.empty()) {
+                        name.pop_back();
+                    };
 
                     printf("%s:\t %s (required: %s)\n", name.c_str(), opt.description.c_str(), opt.required ? "true" : "false");
                 };
@@ -114,8 +122,18 @@ namespace eargs {
                         for(const auto& opt_name : opt.names) {
                             if(name == opt_name) {
                                 switch(opt.type) {
-                                    case eargs::hex: return std::strtoul(opt.variable.c_str(), 0, 16);
-                                    case eargs::integer: case eargs::boolean: return std::atoi(opt.variable.c_str());
+                                    case eargs::hex: {
+                                        return std::strtoul(opt.variable.c_str(), 0, 16);
+                                    };
+
+                                    case eargs::integer: 
+                                    case eargs::boolean: {
+                                        return std::atoi(opt.variable.c_str());
+                                    };
+
+                                    default: {
+                                        break;
+                                    };
                                 };
                             };
                         };
@@ -125,7 +143,7 @@ namespace eargs {
                 };
 
             template<typename T>
-                typename std::enable_if<std::is_same<T, std::string>::value, T>::type get(std::string name) {
+                typename std::enable_if<std::is_same<T, std::string>::value, T>::type get(const std::string& name) {
                     for(const auto& opt : this->options) {
                         for(const auto& opt_name : opt.names) {
                             if(name == opt_name) {                                
