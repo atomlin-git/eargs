@@ -12,6 +12,31 @@ bool argv_parse(eargs::parser& parser, std::initializer_list<const char*> tokens
 }
 }
 
+TEST(parser, rejects_conflicting_option_definitions) {
+    const std::list<eargs::option> options{
+        {{"n", "name"}, "name", eargs::string, false},
+        {{"other", "name"}, "other", eargs::integer, false}
+    };
+    try {
+        eargs::parser parser(options);
+        FAIL() << "Conflicting option names must be rejected during construction";
+    } catch (const std::logic_error& error) {
+        EXPECT_STREQ(error.what(), "Duplicate option name: name");
+    }
+}
+
+TEST(parser, rejects_duplicate_aliases_in_option_list) {
+    const std::list<eargs::option> options{
+        {{"n", "name", "n"}, "name", eargs::string, false}
+    };
+    EXPECT_THROW(eargs::parser{options}, std::logic_error);
+}
+
+TEST(parser, rejects_duplicate_aliases_in_single_option_constructor) {
+    const eargs::option option{{"n", "name", "n"}, "name", eargs::string, false};
+    EXPECT_THROW(eargs::parser{option}, std::logic_error);
+}
+
 TEST(parser, accepts_single_and_double_dash_aliases) {
     eargs::parser parser = {{
         {{"n", "name"}, "name", eargs::string, true},

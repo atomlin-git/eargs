@@ -6,7 +6,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <list>
+#include <set>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -63,8 +65,17 @@ class parser {
 
   public:
     parser(std::list<eargs::option> options_)
-        : options(std::move(options_)), present(options.size(), false) {};
-    parser(eargs::option option) : options({std::move(option)}), present(options.size(), false) {};
+        : options(std::move(options_)), present(options.size(), false) {
+        std::set<std::string> names;
+        for (const auto& opt : options) {
+            for (const auto& name : opt.names) {
+                if (!names.insert(name).second) {
+                    throw std::logic_error("Duplicate option name: " + name);
+                };
+            };
+        };
+    };
+    parser(eargs::option option) : parser(std::list<eargs::option>{std::move(option)}) {};
 
     bool parse(const std::string& str, parse_mode mode = parse_mode::permissive) {
         std::istringstream stream(str);
