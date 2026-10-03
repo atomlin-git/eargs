@@ -15,7 +15,7 @@ if(NOT TARGET GTest::gtest_main)
     FetchContent_MakeAvailable(googletest)
 endif()
 
-add_executable(${PROJECT_NAME} source/hex.cpp source/integer.cpp source/string.cpp source/parser.cpp)
+add_executable(${PROJECT_NAME} source/hex.cpp source/integer.cpp source/string.cpp source/parser.cpp source/enum.cpp)
 target_link_libraries(${PROJECT_NAME} PRIVATE GTest::gtest_main eargs)
 
 include(GoogleTest)

@@ -1,11 +1,14 @@
 #pragma once
 
 #include <algorithm>
+#include <any>
 #include <charconv>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
+#include <initializer_list>
 #include <list>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -16,9 +19,20 @@
 #include <vector>
 
 namespace eargs {
-enum types { string, integer, hex, boolean, empty };
+enum types { string, integer, hex, boolean, empty, enumeration };
 
 enum class parse_mode { permissive, strict };
+
+template <typename Enum>
+    requires std::is_enum_v<Enum>
+struct choices {
+    std::vector<std::pair<std::string, Enum>> values;
+    std::optional<Enum> default_value;
+
+    choices(std::initializer_list<std::pair<std::string, Enum>> values_,
+            std::optional<Enum> default_value_ = {})
+        : values(values_), default_value(default_value_) {};
+};
 
 struct option {
     std::list<std::string> names{};
@@ -31,6 +45,43 @@ struct option {
            bool required_)
         : names(std::move(names_)), description(std::move(description_)), type(type_),
           required(required_) {};
+
+    template <typename Enum>
+        requires std::is_enum_v<Enum>
+    option(std::list<std::string> names_, std::string description_, choices<Enum> choices_,
+           bool required_ = false)
+        : names(std::move(names_)), description(std::move(description_)), type(eargs::enumeration),
+          required(required_) {
+        if (choices_.values.empty())
+            throw std::invalid_argument("Enum choices must not be empty");
+        std::set<std::string> spellings;
+        for (auto& [name, value] : choices_.values) {
+            if (!spellings.insert(name).second)
+                throw std::invalid_argument("Duplicate enum choice: " + name);
+            values_.push_back({std::move(name), value});
+        }
+        if (choices_.default_value)
+            default_value_ = *choices_.default_value;
+    };
+
+  private:
+    struct choice_value {
+        std::string name;
+        std::any value;
+    };
+    std::vector<choice_value> values_;
+    std::any default_value_;
+
+    std::string choice_names() const {
+        std::string result;
+        for (const auto& choice : values_) {
+            if (!result.empty())
+                result += ", ";
+            result += choice.name.empty() ? "\"\"" : choice.name;
+        }
+        return result;
+    }
+    friend class parser;
 };
 
 class parser {
@@ -69,6 +120,8 @@ class parser {
         : options(std::move(options_)), present(options.size(), false) {
         std::set<std::string> names;
         for (const auto& opt : options) {
+            if (opt.type == eargs::enumeration && opt.values_.empty())
+                throw std::invalid_argument("Enum option requires typed choices");
             for (const auto& name : opt.names) {
                 if (!names.insert(name).second) {
                     throw std::logic_error("Duplicate option name: " + name);
@@ -171,6 +224,15 @@ class parser {
                 ++i;
             };
 
+            if (selected->type == eargs::enumeration &&
+                std::none_of(
+                    selected->values_.begin(), selected->values_.end(),
+                    [&](const auto& choice) { return choice.name == selected->variable; })) {
+
+                return fail("invalid value for " + spelling +
+                            " (choices: " + selected->choice_names() + ")");
+            };
+
             supplied[index] = true;
         };
 
@@ -215,26 +277,77 @@ class parser {
                 names += (name.size() == 1 ? "-" : "--") + name;
             };
 
-            printf("%s:\t %s (required: %s)\n", names.c_str(), opt.description.c_str(),
+            auto description = opt.description;
+            if (opt.type == eargs::enumeration)
+                description += " (choices: " + opt.choice_names() + ")";
+
+            printf("%s:\t %s (required: %s)\n", names.c_str(), description.c_str(),
                    opt.required ? "true" : "false");
         };
 
         return true;
     };
 
+    std::vector<std::string> complete(const std::string_view name,
+                                      std::string_view prefix = {}) const {
+        std::vector<std::string> result{};
+        if (const auto* opt = find_option(name)) {
+            for (const auto& choice : opt->values_) {
+                if (choice.name.starts_with(prefix)) {
+                    result.push_back(choice.name);
+                };
+            };
+        };
+
+        return result;
+    };
+
+    template <typename Enum>
+        requires std::is_enum_v<Enum>
+    Enum get(std::string_view name) const {
+        const auto* opt = find_option(name);
+        if (!opt) {
+            throw std::out_of_range("unknown option: " + std::string(name));
+        };
+
+        if (opt->values_.empty() || !std::any_cast<Enum>(&opt->values_.front().value)) {
+            throw std::logic_error("enum type mismatch for option: " + std::string(name));
+        };
+
+        if (!contains(name)) {
+            if (const auto* value = std::any_cast<Enum>(&opt->default_value_)) {
+                return *value;
+            };
+
+            throw std::logic_error("option not supplied: " + std::string(name) +
+                                   " (choices: " + opt->choice_names() + ")");
+        };
+
+        for (const auto& choice : opt->values_) {
+            if (choice.name == opt->variable) {
+                return *std::any_cast<Enum>(&choice.value);
+            };
+        };
+
+        throw std::logic_error("invalid enum state for option: " + std::string(name));
+    };
+
     template <typename T>
         requires std::is_integral_v<T>
     T get(std::string_view name) const noexcept {
         const auto* opt = find_option(name);
-        if (!opt)
+        if (!opt) {
             return {};
+        };
 
         if constexpr (std::is_same_v<T, bool>) {
-            if (opt->type == eargs::empty)
+            if (opt->type == eargs::empty) {
                 return true;
+            };
 
-            if (opt->type != eargs::boolean && opt->type != eargs::integer)
+            if (opt->type != eargs::boolean && opt->type != eargs::integer) {
                 return false;
+            };
 
             T result{};
             int value{};
@@ -244,25 +357,29 @@ class parser {
 
             const auto [ptr, ec] = std::from_chars(begin, end, value);
 
-            if (ec != std::errc{} || ptr != end)
+            if (ec != std::errc{} || ptr != end) {
                 return false;
+            };
 
             return value != 0;
         } else {
-            int base = 10;
+            auto base = 10;
 
             switch (opt->type) {
-            case eargs::hex:
+            case eargs::hex: {
                 base = 16;
                 break;
+            };
 
             case eargs::integer:
-            case eargs::boolean:
+            case eargs::boolean: {
                 break;
+            };
 
-            default:
+            default: {
                 return {};
-            }
+            };
+            };
 
             T result{};
 
@@ -271,18 +388,19 @@ class parser {
 
             const auto [ptr, ec] = std::from_chars(begin, end, result, base);
 
-            if (ec != std::errc{} || ptr != end)
+            if (ec != std::errc{} || ptr != end) {
                 return {};
+            };
 
             return result;
-        }
-    }
+        };
+    };
 
     template <typename T>
-        requires std::is_same_v<T, std::string>
-    T get(std::string_view name) const {
+        requires std::is_same_v<T, std::string> || std::is_same_v<T, std::string_view>
+    T get(const std::string_view name, std::string_view fallback = {}) const {
         const auto* opt = find_option(name);
-        return opt ? opt->variable : std::string{};
-    }
+        return opt && contains(name) ? opt->variable : std::string(fallback);
+    };
 };
 }; // namespace eargs
