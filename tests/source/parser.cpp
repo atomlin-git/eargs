@@ -50,6 +50,17 @@ TEST(parser, accepts_single_and_double_dash_aliases) {
     EXPECT_EQ(parser.get<int>("count"), 7);
 }
 
+TEST(parser, looks_up_non_null_terminated_string_views) {
+    eargs::parser parser = {{{"n", "name"}, "name", eargs::string, false}};
+    const std::string storage = "name-suffix";
+    const std::string_view key(storage.data(), 4);
+    EXPECT_FALSE(parser.contains(key));
+    ASSERT_TRUE(parser.parse("--name Alex", eargs::parse_mode::strict));
+    EXPECT_TRUE(parser.contains(key));
+    EXPECT_EQ(parser.get<std::string>(key), "Alex");
+    EXPECT_FALSE(parser.contains(storage));
+}
+
 TEST(parser, consumes_each_option_once_regardless_of_declaration_order) {
     eargs::parser parser = {{
         {{"first"}, "first", eargs::string, true},

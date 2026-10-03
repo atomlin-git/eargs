@@ -10,6 +10,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -190,7 +191,7 @@ class parser {
 
     const auto& error() const noexcept { return error_message; };
 
-    bool contains(const std::string& name) const {
+    bool contains(const std::string_view name) const {
         size_t index{};
         for (const auto& opt : options) {
             if (std::find(opt.names.begin(), opt.names.end(), name) != opt.names.end()) {
